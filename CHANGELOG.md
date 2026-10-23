@@ -2,7 +2,7 @@
 
 ## Unreleased — 0.2 development
 
-- Three offline landscape wallpapers, bundled at 3840 × 2160 (upscaled generated artwork), with a separate wallpaper-darkening control.
+- Three approved photographic landscape wallpapers, cropped and downsampled from 6K originals to 3840 × 2160, with a separate wallpaper-darkening control. Sources and credits are in `docs/wallpapers.md`.
 - Larger clock at the bottom left and compact Settings/AirPlay/Customize controls at the top right.
 - Wallpaper-aware glass refraction, background loading on a worker thread, and GPU surface caching.
 

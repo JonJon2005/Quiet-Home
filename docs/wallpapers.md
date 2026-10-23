@@ -1,20 +1,28 @@
-# Bundled landscape wallpapers
+# Bundled landscape photographs
 
-The app includes three local JPEGs in `assets/wallpapers/`, each **3840 × 2160**: `alpine.jpg`, `coast.jpg`, and `dunes.jpg`. All work offline. Images were created with the built-in image-generation tool, then converted to JPEG and resized for app packaging.
+The app includes three approved real photographs, bundled as **3840 × 2160** JPEGs in `assets/wallpapers/`. Each was center-cropped to 16:9 and downsampled from the full-resolution original, with no upscaling or generative changes. All work offline.
 
-The image generator returned 1672 × 941 originals despite the 4K request. The shipped files are upscaled to 4K dimensions, not native 4K captures. Slight aspect normalization makes them exactly 16:9. The original generated compositions were preserved.
+## Sources and credits
 
-## Prompt set
+| App name / asset | Photographer / source | Original dimensions | License |
+| --- | --- | --- | --- |
+| Lake McDonald / `alpine.jpg` | Glacier National Park / National Park Service | 6016 × 4000 | U.S. public domain, federal government work |
+| McWay Falls / `coast.jpg` | adrian / aows, via Unsplash and Wikimedia Commons | 6000 × 4000 | CC0 1.0; published on Unsplash before its June 2017 license change |
+| Great Sand Dunes / `dunes.jpg` | Patrick Myers / National Park Service | 6000 × 4000 | U.S. public domain, federal government work |
 
-Shared prompt for each image:
+### Lake McDonald, Montana
 
-> Use case: photorealistic-natural. Asset type: bundled Android TV landscape wallpaper. Generate a single finished ultra-wide 16:9 wallpaper, exactly 3840x2160 pixels if supported, full bleed. [Scene below] Composition: expansive quiet sky in the upper third, landscape detail toward the right and lower half; subdued uncluttered left side for UI text. Premium understated Apple TV-like scenic wallpaper mood. No text, logos, borders, people, buildings, collages or UI. Output one image.
+[Source and licensing](https://commons.wikimedia.org/wiki/File:Lake_McDonald_with_Mt_Cannon,_Mt_Brown,_Little_Matterhorn,_Mt_Edwards,_and_Gunsight_Mountain_(12091853594).jpg). Taken 20 January 2014. Warm evening light on the mountains reflected in Lake McDonald.
 
-Scenes:
+### McWay Falls, California
 
-- **Alpine lake:** Alpine lake at blue hour, layered mountain silhouettes and mirror-still water, soft mist, deep navy and cool slate blue tones, subtle warm light on distant snowy peaks, tranquil photographic natural landscape.
-- **Coastal dusk:** Dramatic sea cliffs above a calm ocean at dusk, soft peach horizon fading to indigo sky, muted teal water, coastal headlands receding into haze, tasteful cinematic landscape photography.
-- **Desert dunes:** Minimal sweeping desert dunes at sunset, sculptural smooth sand ridges, warm amber highlights, deep mauve shadows, distant hazy mountains, calm atmospheric fine-art landscape photography.
+[Source and licensing](https://commons.wikimedia.org/wiki/File:Photograph_of_the_ocean_from_the_cliff_in_McWay_Falls.jpg). Photographer: [adrian / aows](https://unsplash.com/@aows). Original title: Live postcard. [CC0 1.0 dedication](https://creativecommons.org/publicdomain/zero/1.0/).
+
+### Great Sand Dunes, Colorado
+
+[Source and licensing](https://commons.wikimedia.org/wiki/File:Clearing_Storm_over_Dunes_(52390197290).jpg). Title: Clearing Storm over Dunes. Photograph by NPS/Patrick Myers, taken 1 September 2019. A late-summer thunderstorm clears at sunset.
+
+The historical asset filenames are retained so existing wallpaper selections continue to work. These photographs replace the generated artwork in the earlier development build.
 
 ## Rendering
 

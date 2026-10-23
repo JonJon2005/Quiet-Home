@@ -21,7 +21,7 @@ public class HomeActivity extends Activity {
     private int white, muted, surface, inactive, border, toolFocus;
     private String theme;
     private boolean customizing=false, glass=false;
-    private final String[] wallpaperNames={"Alpine lake","Coastal dusk","Desert dunes"};
+    private final String[] wallpaperNames={"Lake McDonald","McWay Falls","Great Sand Dunes"};
     private final String[] wallpaperFiles={"alpine","coast","dunes"};
     private final java.util.concurrent.ExecutorService wallpaperWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
     private final android.util.LruCache<String,Bitmap> wallpaperCache=new android.util.LruCache<String,Bitmap>(48*1024*1024){
