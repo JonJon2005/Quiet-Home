@@ -20,7 +20,10 @@ public class HomeActivity extends Activity {
     private final Handler handler = new Handler();
     private int white, muted, surface, inactive, border, toolFocus;
     private String theme;
-    private boolean customizing=false;
+    private boolean customizing=false, glass=false;
+    private String inputSignature="";
+    private final Runnable refreshTask=()->refresh();
+    private void scheduleRefresh(){handler.removeCallbacks(refreshTask);handler.postDelayed(refreshTask,60);}
     private Object backlight;
     private Class<?> backlightClass, applyClass, actClass;
     private final String[] backgroundNames={"Original midnight","Ocean blue","Aurora teal","Forest green","Sunset amber","Rose","Purple haze","Graphite"};
@@ -36,10 +39,10 @@ public class HomeActivity extends Activity {
         {0xffeee2ff,0xffe7e1f5,0xffdfeafa}, {0xfff3f4f5,0xffe1e5e9,0xffedf0f3}};
     private int backgroundIndex(){return Math.max(0,Math.min(backgroundNames.length-1,getPreferences(0).getInt("background",0)));}
     private final TvInputManager.TvInputCallback callback = new TvInputManager.TvInputCallback() {
-        @Override public void onInputStateChanged(String id, int state) { refresh(); }
-        @Override public void onInputAdded(String id) { refresh(); }
-        @Override public void onInputRemoved(String id) { refresh(); }
-        @Override public void onInputUpdated(String id) { refresh(); }
+        @Override public void onInputStateChanged(String id, int state) { scheduleRefresh(); }
+        @Override public void onInputAdded(String id) { scheduleRefresh(); }
+        @Override public void onInputRemoved(String id) { scheduleRefresh(); }
+        @Override public void onInputUpdated(String id) { scheduleRefresh(); }
     };
 
     @Override public void onCreate(Bundle state) {
@@ -50,6 +53,7 @@ public class HomeActivity extends Activity {
     }
     private void palette() {
         theme=getPreferences(0).getString("theme","dark");
+        glass=getPreferences(0).getBoolean("liquid_glass",false) && Build.VERSION.SDK_INT>=33;
         boolean light=theme.equals("light");
         white=light?0xff182235:0xfff5f7ff; muted=light?0xff526077:0xff9ba6be;
         surface=light?0xffe2e8f1:theme.equals("oled")?0xff111111:0xff29364a;
@@ -70,6 +74,7 @@ public class HomeActivity extends Activity {
     }
     private void buildHome() {
         customizing=false;
+        inputSignature="";
         LinearLayout root=page();
         LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView brand = text("HOME",14,muted); brand.setLetterSpacing(.22f);
@@ -99,7 +104,12 @@ public class HomeActivity extends Activity {
     @Override protected void onResume() {
         super.onResume(); inputs.registerCallback(callback,handler); refresh();
     }
-    @Override protected void onPause() { inputs.unregisterCallback(callback); super.onPause(); }
+    @Override protected void onPause() { inputs.unregisterCallback(callback);handler.removeCallbacks(refreshTask); super.onPause(); }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);setIntent(intent);
+        if(customizing && intent.hasCategory(Intent.CATEGORY_HOME))buildHome();
+    }
+    @Override protected void onDestroy(){handler.removeCallbacks(refreshTask);super.onDestroy();}
     @Override public void onBackPressed() { if(customizing)buildHome(); }
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
         if(keyCode==KeyEvent.KEYCODE_SETTINGS || keyCode==KeyEvent.KEYCODE_NOTIFICATION) { settings(); return true; }
@@ -114,19 +124,41 @@ public class HomeActivity extends Activity {
         GradientDrawable d=new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(19));
         d.setStroke(dp(focus?2:1),focus?border:theme.equals("light")?0x22182235:0x22ffffff); return d;
     }
+    private android.graphics.drawable.Drawable surfaceFor(View owner,int color){
+        if(glass){
+            int[] bg=theme.equals("oled")?new int[]{0xff000000,0xff000000}:
+                theme.equals("light")?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
+            try{return new GlassDrawable(owner,bg,color,theme.equals("light"),getResources().getDisplayMetrics().density);}
+            catch(RuntimeException e){android.util.Log.e("QuietHome","Glass unavailable",e);}
+        }
+        android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_focused},panel(color,true));
+        states.addState(new int[]{},panel(color,false));return states;
+    }
+    private void focusSurface(View view,boolean focused){
+        if(view.getBackground() instanceof GlassDrawable)((GlassDrawable)view.getBackground()).focus(focused);
+        view.animate().cancel();
+        view.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f).setDuration(100)
+            .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+    }
     private TextView tool(String label,Runnable action) {
         TextView t=text(label,15,white); t.setGravity(Gravity.CENTER); t.setFocusable(true);
-        t.setBackground(panel(surface,false));
-        t.setOnFocusChangeListener((v,f)-> { v.setBackground(panel(f?toolFocus:surface,f)); });
+        t.setBackground(surfaceFor(t,surface));
+        t.setOnFocusChangeListener((v,f)->focusSurface(v,f));
         t.setOnClickListener(v->action.run());
         t.setLayoutParams(new LinearLayout.LayoutParams(dp(140),dp(44))); return t;
     }
     private void refresh() {
         if(cards==null || customizing)return;
         boolean restoreFocus=getCurrentFocus()==null || getCurrentFocus().getTag()!=null;
-        cards.removeAllViews();
         try {
             List<TvInputInfo> all=inputs.getTvInputList();
+            StringBuilder signature=new StringBuilder();
+            for(TvInputInfo i:all)signature.append(i.getId()).append('|').append(inputs.getInputState(i.getId()))
+                .append('|').append(i.loadLabel(this)).append('|').append(i.loadCustomLabel(this)).append(';');
+            signature.append(getPreferences(0).getAll().toString());
+            if(signature.toString().equals(inputSignature))return;
+            inputSignature=signature.toString();cards.removeAllViews();
             List<TvInputInfo> hdmi=new ArrayList<>();
             for(TvInputInfo i:all) if(i.getType()==TvInputInfo.TYPE_HDMI && i.getParentId()==null) hdmi.add(i);
             hdmi.sort(Comparator.comparing(TvInputInfo::getId));
@@ -149,7 +181,7 @@ public class HomeActivity extends Activity {
                 int[] colors=theme.equals("light")?new int[]{0xffcbdff0,0xffdbd6ee,0xffcce4df,0xffead7cf}:
                     theme.equals("oled")?new int[]{0xff141414,0xff141414,0xff141414,0xff141414}:
                     new int[]{0xff305877,0xff49436b,0xff35595b,0xff66504c}; final int color=colors[index%4];
-                tile.setBackground(panel(connected?color:inactive,false)); tile.setAlpha(connected?1f:.65f);
+                tile.setBackground(surfaceFor(tile,connected?color:inactive)); tile.setAlpha(connected?1f:.65f);
                 View icon=new ScreenIcon(this); LinearLayout.LayoutParams ilp=new LinearLayout.LayoutParams(dp(52),dp(43));
                 ilp.bottomMargin=dp(12); tile.addView(icon,ilp);
                 TextView label=text(name,19,white); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -160,9 +192,7 @@ public class HomeActivity extends Activity {
                 tile.setOnLongClickListener(v->{ rename(base.getId(),name); return true; });
                 tile.setOnFocusChangeListener((v,f)->{
                     if(f)focused=base.getId();
-                    v.animate().scaleX(f?1.045f:1f).scaleY(f?1.045f:1f).setDuration(150).start();
-                    v.setBackground(panel(f?color:connected?color:inactive,f));
-                    v.setElevation(dp(f?12:0));
+                    focusSurface(v,f);
                 });
                 LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(160),1); if(index>0)lp.leftMargin=dp(18);
                 cards.addView(tile,lp); if(first==null)first=tile; if(base.getId().equals(focused))chosen=tile;
@@ -214,6 +244,12 @@ public class HomeActivity extends Activity {
         LinearLayout.LayoutParams tlp=new LinearLayout.LayoutParams(-1,dp(55));tlp.topMargin=dp(16);root.addView(themes,tlp);
         TextView backgroundButton=tool("Background · "+(theme.equals("oled")?"Pure black":backgroundNames[backgroundIndex()]),()->backgroundPicker());
         LinearLayout.LayoutParams bglp=new LinearLayout.LayoutParams(dp(410),dp(44));bglp.topMargin=dp(12);root.addView(backgroundButton,bglp);
+        TextView glassButton=tool("Liquid Glass · "+(glass?"On":"Off"),()->{
+            getPreferences(0).edit().putBoolean("liquid_glass",!glass).apply();customization();
+            getWindow().getDecorView().findViewWithTag("glass-toggle").requestFocus();
+        });
+        glassButton.setTag("glass-toggle");glassButton.setEnabled(Build.VERSION.SDK_INT>=33);
+        LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(dp(410),dp(44));glp.topMargin=dp(10);root.addView(glassButton,glp);
         TextView title=text("TV brightness",22,white);
         LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(-1,-2);blp.topMargin=dp(26);root.addView(title,blp);
         TextView readout=text("Reading panel backlight…",14,muted);root.addView(readout);

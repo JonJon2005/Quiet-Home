@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 0.2 development
+
+- Optional Liquid Glass material in Customize: GPU-rendered gradient refraction, edge dispersion, directional rim highlights, internal caustics, and a focus-responsive sheen. Available on Android 13+; conventional surfaces remain available.
+- Faster 100 ms focus transitions with cached backgrounds.
+- Coalesced input callbacks and skipped unchanged tile rebuilds, preserving focus on return.
+- Home returns from Customize to the input grid.
+- Tested on TCL 65QM6K with Dark, Light, and OLED themes and HDMI-to-Home navigation. See `docs/performance.md` for the short on-device navigation comparison.
+
 ## v0.1
 
 Initial release of Quiet Home for TCL G08 Google TVs, tested on a TCL 65QM6K running Android 14.
