@@ -15,7 +15,7 @@ final class GlassDrawable extends Drawable {
     private float focus;
     private ValueAnimator animation;
     private final RectF bounds=new RectF();
-    GlassDrawable(View owner,int[] background,int tint,boolean light,float density) {
+    GlassDrawable(View owner,int[] background,int tint,boolean light,float density,WallpaperDrawable wallpaper) {
         this.owner=owner;radius=19*density;
         shader=new RuntimeShader(SOURCE);
         shader.setColorUniform("c0",background[0]);
@@ -23,6 +23,10 @@ final class GlassDrawable extends Drawable {
         shader.setColorUniform("c2",background[background.length-1]);
         shader.setColorUniform("tint",tint);
         shader.setFloatUniform("lightMode",light?1f:0f);
+        shader.setFloatUniform("imageOn",wallpaper==null?0f:1f);
+        shader.setFloatUniform("darkness",wallpaper==null?0f:wallpaper.darkness);
+        shader.setInputShader("wallpaper",wallpaper==null?
+            new LinearGradient(0,0,1,1,background[0],background[background.length-1],Shader.TileMode.CLAMP):wallpaper.image);
         paint.setShader(shader);
     }
     void focus(boolean selected) {
@@ -51,9 +55,11 @@ final class GlassDrawable extends Drawable {
     private static final String SOURCE=String.join("\n",
         "uniform float2 size; uniform float2 origin; uniform float2 screen;",
         "uniform float radius; uniform float focus; uniform float lightMode;",
+        "uniform shader wallpaper; uniform float imageOn; uniform float darkness;",
         "layout(color) uniform float4 c0; layout(color) uniform float4 c1;",
         "layout(color) uniform float4 c2; layout(color) uniform float4 tint;",
         "float3 scene(float2 p) {",
+        " if(imageOn>0.5){float bottom=clamp((p.y/screen.y-0.5)*2.0,0.0,1.0);return wallpaper.eval(p).rgb*(1.0-darkness)*(1.0-bottom*0.2);}",
         " float t=clamp((p.x/screen.x+p.y/screen.y)*0.5,0.0,1.0);",
         " return mix(mix(c0.rgb,c1.rgb,clamp(t*2.0,0.0,1.0)),c2.rgb,clamp(t*2.0-1.0,0.0,1.0));",
         "}",
@@ -70,7 +76,8 @@ final class GlassDrawable extends Drawable {
         " float2 lens=v/max(center,float2(1.0));",
         " float2 refract=p+origin-n*bevel*(18.0+focus*8.0)-lens*(5.0+focus*4.0);",
         " float split=bevel*(1.3+focus);",
-        " float3 base=float3(scene(refract+n*split).r,scene(refract).g,scene(refract-n*split).b);",
+        " float3 base=scene(refract);",
+        " if(bevel>0.2){base.r=scene(refract+n*split).r;base.b=scene(refract-n*split).b;}",
         " base=mix(base,tint.rgb,lightMode>0.5?0.20:0.13);",
         " float fresnel=pow(clamp(bevel,0.0,1.0),0.55);",
         " float facing=dot(n,normalize(float2(-0.55,-0.83)));",

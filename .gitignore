@@ -8,6 +8,7 @@
 !/restore-google-home.sh
 !/src/
 !/docs/
+!/assets/
 
 # Always keep signing material and build products local.
 **/*.p12

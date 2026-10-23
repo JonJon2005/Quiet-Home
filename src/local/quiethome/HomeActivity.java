@@ -21,6 +21,46 @@ public class HomeActivity extends Activity {
     private int white, muted, surface, inactive, border, toolFocus;
     private String theme;
     private boolean customizing=false, glass=false;
+    private final String[] wallpaperNames={"Alpine lake","Coastal dusk","Desert dunes"};
+    private final String[] wallpaperFiles={"alpine","coast","dunes"};
+    private final java.util.concurrent.ExecutorService wallpaperWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
+    private final android.util.LruCache<String,Bitmap> wallpaperCache=new android.util.LruCache<String,Bitmap>(48*1024*1024){
+        @Override protected int sizeOf(String key,Bitmap bitmap){return bitmap.getAllocationByteCount();}
+    };
+    private String loadedWallpaper="",loadingWallpaper="";
+    private Bitmap wallpaperBitmap;
+    private WallpaperDrawable photoScene;
+    private String wallpaperKey(){return getPreferences(0).getString("wallpaper","");}
+    private boolean isLight(){return "light".equals(theme) && wallpaperKey().isEmpty();}
+    private String backgroundLabel(){
+        String key=wallpaperKey();for(int n=0;n<wallpaperFiles.length;n++)if(wallpaperFiles[n].equals(key))return wallpaperNames[n];
+        return theme.equals("oled")?"Pure black":backgroundNames[backgroundIndex()];
+    }
+    private void loadWallpaper(){
+        final String key=wallpaperKey();
+        if(key.isEmpty() || key.equals(loadedWallpaper) || key.equals(loadingWallpaper))return;
+        loadingWallpaper=key;
+        wallpaperWorker.execute(()->{
+            try{
+                Bitmap bitmap=wallpaperCache.get(key);
+                if(bitmap==null){
+                    BitmapFactory.Options options=new BitmapFactory.Options();
+                    int width=getResources().getDisplayMetrics().widthPixels;
+                    options.inSampleSize=width<=1920?2:1;options.inPreferredConfig=Bitmap.Config.ARGB_8888;
+                    try(java.io.InputStream stream=getAssets().open("wallpapers/"+key+".jpg")){bitmap=BitmapFactory.decodeStream(stream,null,options);}
+                    if(bitmap==null)throw new java.io.IOException("Wallpaper decode failed");
+                    wallpaperCache.put(key,bitmap);
+                }
+                final Bitmap ready=bitmap;
+                handler.post(()->{if(isDestroyed())return;loadingWallpaper="";if(!key.equals(wallpaperKey()))return;
+                    wallpaperBitmap=ready;loadedWallpaper=key;if(customizing)customization();else buildHome();});
+            }catch(Exception e){android.util.Log.e("QuietHome","Wallpaper load",e);handler.post(()->{
+                if(isDestroyed())return;loadingWallpaper="";if(key.equals(wallpaperKey())){
+                    getPreferences(0).edit().remove("wallpaper").apply();Toast.makeText(this,"Wallpaper unavailable. Using gradient.",0).show();
+                    if(customizing)customization();else buildHome();}
+            });}
+        });
+    }
     private String inputSignature="";
     private final Runnable refreshTask=()->refresh();
     private void scheduleRefresh(){handler.removeCallbacks(refreshTask);handler.postDelayed(refreshTask,60);}
@@ -54,8 +94,9 @@ public class HomeActivity extends Activity {
     private void palette() {
         theme=getPreferences(0).getString("theme","dark");
         glass=getPreferences(0).getBoolean("liquid_glass",false) && Build.VERSION.SDK_INT>=33;
-        boolean light=theme.equals("light");
+        boolean light=isLight();
         white=light?0xff182235:0xfff5f7ff; muted=light?0xff526077:0xff9ba6be;
+        if(!wallpaperKey().isEmpty())muted=0xffd6deec;
         surface=light?0xffe2e8f1:theme.equals("oled")?0xff111111:0xff29364a;
         inactive=light?0xffe6e9ee:theme.equals("oled")?0xff090909:0xff252e3e;
         border=light?0xff3a6598:0xffe1ebff; toolFocus=light?0xffc8d9ed:0xff344762;
@@ -67,9 +108,18 @@ public class HomeActivity extends Activity {
         root.setClipChildren(false); root.setClipToPadding(false);
         root.setPadding(dp(52),dp(30),dp(52),dp(25));
         int[] bg=theme.equals("oled")?new int[]{0xff000000,0xff000000}:
-            theme.equals("light")?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
-        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,bg));
-        setContentView(root);
+            isLight()?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
+        FrameLayout backdrop=new FrameLayout(this);
+        photoScene=null;
+        if(!wallpaperKey().isEmpty() && wallpaperKey().equals(loadedWallpaper) && wallpaperBitmap!=null){
+            photoScene=new WallpaperDrawable(wallpaperBitmap,getPreferences(0).getInt("wallpaper_shade",30)/100f);
+            backdrop.setBackground(photoScene);
+        }else backdrop.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,bg));
+        if(customizing){
+            ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);
+            scroll.addView(root,new ScrollView.LayoutParams(-1,-2));backdrop.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        }else backdrop.addView(root,new FrameLayout.LayoutParams(-1,-1));
+        setContentView(backdrop);loadWallpaper();
         return root;
     }
     private void buildHome() {
@@ -79,8 +129,11 @@ public class HomeActivity extends Activity {
         LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView brand = text("HOME",14,muted); brand.setLetterSpacing(.22f);
         top.addView(brand,new LinearLayout.LayoutParams(0,dp(35),1));
-        TextClock clock = new TextClock(this); clock.setFormat12Hour("h:mm a"); clock.setFormat24Hour("HH:mm");
-        clock.setTextSize(16); clock.setTextColor(white); top.addView(clock);
+        TextView settingsTool=compactTool("Settings",()->settings());top.addView(settingsTool);
+        LinearLayout.LayoutParams airGap=new LinearLayout.LayoutParams(dp(78),dp(34));airGap.leftMargin=dp(8);
+        top.addView(compactTool("AirPlay",()->airplay()),airGap);
+        LinearLayout.LayoutParams customGap=new LinearLayout.LayoutParams(dp(94),dp(34));customGap.leftMargin=dp(8);
+        top.addView(compactTool("Customize",()->customization()),customGap);
         root.addView(top);
         TextView title = text("Your devices.",42,white); title.setTypeface(Typeface.create("sans-serif-light",0));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(-1,dp(65)); titleLp.topMargin=dp(34);
@@ -89,16 +142,13 @@ public class HomeActivity extends Activity {
         cards = new LinearLayout(this); cards.setClipChildren(false); cards.setClipToPadding(false);
         LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1,dp(182)); rowLp.topMargin=dp(33);
         root.addView(cards,rowLp);
-        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER_VERTICAL);
-        tools.addView(tool("Settings", () -> settings()));
-        LinearLayout.LayoutParams toolGap = new LinearLayout.LayoutParams(dp(140),dp(44)); toolGap.leftMargin=dp(14);
-        tools.addView(tool("AirPlay", () -> airplay()),toolGap);
-        LinearLayout.LayoutParams customizeLp=new LinearLayout.LayoutParams(dp(160),dp(44));customizeLp.leftMargin=dp(14);
-        tools.addView(tool("Customize", () -> customization()),customizeLp);
-        root.addView(tools);
+        root.addView(new View(this),new LinearLayout.LayoutParams(-1,0,1));
+        TextClock clock = new TextClock(this);clock.setFormat12Hour("h:mm a");clock.setFormat24Hour("HH:mm");
+        clock.setTextSize(40);clock.setTextColor(white);clock.setTypeface(Typeface.create("sans-serif-light",0));
+        if(!wallpaperKey().isEmpty())clock.setShadowLayer(dp(3),0,dp(1),0xaa000000);
+        root.addView(clock,new LinearLayout.LayoutParams(-1,dp(56)));
         status=text("Hold OK on an input to rename it.",12,muted);
-        LinearLayout.LayoutParams statusLp=new LinearLayout.LayoutParams(-1,-2); statusLp.topMargin=dp(20);
-        root.addView(status,statusLp);
+        root.addView(status,new LinearLayout.LayoutParams(-1,dp(22)));
         refresh();
     }
     @Override protected void onResume() {
@@ -109,7 +159,7 @@ public class HomeActivity extends Activity {
         super.onNewIntent(intent);setIntent(intent);
         if(customizing && intent.hasCategory(Intent.CATEGORY_HOME))buildHome();
     }
-    @Override protected void onDestroy(){handler.removeCallbacks(refreshTask);super.onDestroy();}
+    @Override protected void onDestroy(){handler.removeCallbacksAndMessages(null);wallpaperWorker.shutdownNow();wallpaperCache.evictAll();super.onDestroy();}
     @Override public void onBackPressed() { if(customizing)buildHome(); }
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
         if(keyCode==KeyEvent.KEYCODE_SETTINGS || keyCode==KeyEvent.KEYCODE_NOTIFICATION) { settings(); return true; }
@@ -118,17 +168,18 @@ public class HomeActivity extends Activity {
     private int dp(float n) { return Math.round(n*getResources().getDisplayMetrics().density); }
     private TextView text(String value,int size,int color) {
         TextView t=new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        if(!wallpaperKey().isEmpty())t.setShadowLayer(dp(3),0,dp(1),0xaa000000);
         t.setFontFeatureSettings("kern"); return t;
     }
     private GradientDrawable panel(int color,boolean focus) {
         GradientDrawable d=new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(19));
-        d.setStroke(dp(focus?2:1),focus?border:theme.equals("light")?0x22182235:0x22ffffff); return d;
+        d.setStroke(dp(focus?2:1),focus?border:isLight()?0x22182235:0x22ffffff); return d;
     }
     private android.graphics.drawable.Drawable surfaceFor(View owner,int color){
         if(glass){
             int[] bg=theme.equals("oled")?new int[]{0xff000000,0xff000000}:
-                theme.equals("light")?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
-            try{return new GlassDrawable(owner,bg,color,theme.equals("light"),getResources().getDisplayMetrics().density);}
+                isLight()?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
+            try{owner.setLayerType(View.LAYER_TYPE_HARDWARE,null);return new GlassDrawable(owner,bg,color,isLight(),getResources().getDisplayMetrics().density,photoScene);}
             catch(RuntimeException e){android.util.Log.e("QuietHome","Glass unavailable",e);}
         }
         android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
@@ -140,6 +191,9 @@ public class HomeActivity extends Activity {
         view.animate().cancel();
         view.animate().scaleX(focused?1.035f:1f).scaleY(focused?1.035f:1f).setDuration(100)
             .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+    }
+    private TextView compactTool(String label,Runnable action){
+        TextView t=tool(label,action);t.setTextSize(12);t.setLayoutParams(new LinearLayout.LayoutParams(dp(86),dp(34)));return t;
     }
     private TextView tool(String label,Runnable action) {
         TextView t=text(label,15,white); t.setGravity(Gravity.CENTER); t.setFocusable(true);
@@ -178,14 +232,14 @@ public class HomeActivity extends Activity {
                 LinearLayout tile=new LinearLayout(this); tile.setOrientation(1);
                 tile.setPadding(dp(20),dp(16),dp(20),dp(14)); tile.setGravity(Gravity.BOTTOM);
                 tile.setFocusable(true); tile.setClickable(true); tile.setTag(base.getId());
-                int[] colors=theme.equals("light")?new int[]{0xffcbdff0,0xffdbd6ee,0xffcce4df,0xffead7cf}:
+                int[] colors=isLight()?new int[]{0xffcbdff0,0xffdbd6ee,0xffcce4df,0xffead7cf}:
                     theme.equals("oled")?new int[]{0xff141414,0xff141414,0xff141414,0xff141414}:
                     new int[]{0xff305877,0xff49436b,0xff35595b,0xff66504c}; final int color=colors[index%4];
                 tile.setBackground(surfaceFor(tile,connected?color:inactive)); tile.setAlpha(connected?1f:.65f);
                 View icon=new ScreenIcon(this); LinearLayout.LayoutParams ilp=new LinearLayout.LayoutParams(dp(52),dp(43));
                 ilp.bottomMargin=dp(12); tile.addView(icon,ilp);
                 TextView label=text(name,19,white); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                tile.addView(label); TextView sub=text(port+"  ·  "+(connected?"Connected":"No signal"),11,theme.equals("light")?muted:0xffced8ea);
+                tile.addView(label); TextView sub=text(port+"  ·  "+(connected?"Connected":"No signal"),11,isLight()?muted:0xffced8ea);
                 LinearLayout.LayoutParams slp=new LinearLayout.LayoutParams(-1,-2); slp.topMargin=dp(7); tile.addView(sub,slp);
                 tile.setContentDescription(name+", "+port+", "+(connected?"connected":"no signal"));
                 tile.setOnClickListener(v->openInput(target));
@@ -236,13 +290,13 @@ public class HomeActivity extends Activity {
         for(int n=0;n<3;n++) {
             final String value=values[n];
             TextView button=tool((theme.equals(value)?"✓  ":"")+names[n],()->{
-                getPreferences(0).edit().putString("theme",value).apply();customization();
+                android.content.SharedPreferences.Editor edit=getPreferences(0).edit().putString("theme",value);if(value.equals("oled"))edit.remove("wallpaper");edit.apply();customization();
             });
             LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(190),dp(48));lp.rightMargin=dp(15);
             themes.addView(button,lp);if(theme.equals(value))selected=button;
         }
         LinearLayout.LayoutParams tlp=new LinearLayout.LayoutParams(-1,dp(55));tlp.topMargin=dp(16);root.addView(themes,tlp);
-        TextView backgroundButton=tool("Background · "+(theme.equals("oled")?"Pure black":backgroundNames[backgroundIndex()]),()->backgroundPicker());
+        TextView backgroundButton=tool("Background · "+backgroundLabel(),()->backgroundPicker());
         LinearLayout.LayoutParams bglp=new LinearLayout.LayoutParams(dp(410),dp(44));bglp.topMargin=dp(12);root.addView(backgroundButton,bglp);
         TextView glassButton=tool("Liquid Glass · "+(glass?"On":"Off"),()->{
             getPreferences(0).edit().putBoolean("liquid_glass",!glass).apply();customization();
@@ -250,11 +304,28 @@ public class HomeActivity extends Activity {
         });
         glassButton.setTag("glass-toggle");glassButton.setEnabled(Build.VERSION.SDK_INT>=33);
         LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(dp(410),dp(44));glp.topMargin=dp(10);root.addView(glassButton,glp);
+        if(!wallpaperKey().isEmpty()){
+            int shade=getPreferences(0).getInt("wallpaper_shade",30);
+            TextView shadeLabel=text("Wallpaper darkening · "+shade+"%",16,white);
+            LinearLayout.LayoutParams shadeLp=new LinearLayout.LayoutParams(-1,-2);shadeLp.topMargin=dp(15);root.addView(shadeLabel,shadeLp);
+            SeekBar shadeSlider=new SeekBar(this);shadeSlider.setMax(70);shadeSlider.setProgress(shade);shadeSlider.setKeyProgressIncrement(5);
+            shadeSlider.setTag("wallpaper-shade");shadeSlider.setContentDescription("Wallpaper darkening");
+            root.addView(shadeSlider,new LinearLayout.LayoutParams(dp(650),dp(42)));
+            shadeSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+                private final Runnable apply=()->{customization();View v=getWindow().getDecorView().findViewWithTag("wallpaper-shade");if(v!=null)v.requestFocus();};
+                public void onStartTrackingTouch(SeekBar s){}
+                public void onStopTrackingTouch(SeekBar s){}
+                public void onProgressChanged(SeekBar s,int value,boolean user){if(!user)return;
+                    shadeLabel.setText("Wallpaper darkening · "+value+"%");getPreferences(0).edit().putInt("wallpaper_shade",value).apply();
+                    handler.removeCallbacks(apply);handler.postDelayed(apply,350);
+                }
+            });
+        }
         TextView title=text("TV brightness",22,white);
         LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(-1,-2);blp.topMargin=dp(26);root.addView(title,blp);
         TextView readout=text("Reading panel backlight…",14,muted);root.addView(readout);
         SeekBar slider=new SeekBar(this);slider.setMin(1);slider.setMax(100);slider.setKeyProgressIncrement(5);
-        slider.setProgressTintList(android.content.res.ColorStateList.valueOf(theme.equals("light")?0xff305c91:0xffb9d6ff));
+        slider.setProgressTintList(android.content.res.ColorStateList.valueOf(isLight()?0xff305c91:0xffb9d6ff));
         slider.setThumbTintList(android.content.res.ColorStateList.valueOf(white));
         slider.setContentDescription("TV brightness. Use left and right to adjust.");
         LinearLayout.LayoutParams slp=new LinearLayout.LayoutParams(dp(650),dp(48));slp.topMargin=dp(8);root.addView(slider,slp);
@@ -280,12 +351,20 @@ public class HomeActivity extends Activity {
         if(selected!=null)selected.requestFocus();
     }
     private void backgroundPicker(){
-        Context dialogContext=new ContextThemeWrapper(this,theme.equals("light")?
+        Context dialogContext=new ContextThemeWrapper(this,isLight()?
             android.R.style.Theme_Material_Light_Dialog_Alert:android.R.style.Theme_Material_Dialog_Alert);
-        new AlertDialog.Builder(dialogContext)
-            .setTitle(theme.equals("oled")?"Gradient background · switches to Dark":"Gradient background")
-            .setSingleChoiceItems(backgroundNames,theme.equals("oled")?-1:backgroundIndex(),(dialog,which)->{
-                android.content.SharedPreferences.Editor edit=getPreferences(0).edit().putInt("background",which);
+        String[] options=new String[backgroundNames.length+wallpaperNames.length];
+        for(int i=0;i<backgroundNames.length;i++)options[i]=backgroundNames[i]+" · Gradient";
+        int selected=theme.equals("oled")?-1:backgroundIndex();
+        for(int i=0;i<wallpaperNames.length;i++){
+            options[backgroundNames.length+i]=wallpaperNames[i]+" · Landscape";
+            if(wallpaperKey().equals(wallpaperFiles[i]))selected=backgroundNames.length+i;
+        }
+        new AlertDialog.Builder(dialogContext).setTitle("Background")
+            .setSingleChoiceItems(options,selected,(dialog,which)->{
+                android.content.SharedPreferences.Editor edit=getPreferences(0).edit();
+                if(which<backgroundNames.length)edit.putInt("background",which).remove("wallpaper");
+                else edit.putString("wallpaper",wallpaperFiles[which-backgroundNames.length]);
                 if(theme.equals("oled"))edit.putString("theme","dark");
                 edit.apply();dialog.dismiss();customization();
             }).setNegativeButton("Cancel",null).show();

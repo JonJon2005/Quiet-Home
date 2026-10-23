@@ -22,4 +22,8 @@ The development build coalesces input callbacks, skips rebuilding identical inpu
 
 `GlassDrawable` uses Android 13+ AGSL to analytically sample the launcher's known gradient through a rounded lens. Edge normals bend the sample coordinates; separate color offsets approximate edge dispersion. Directional rim lighting, Fresnel-like edge strength, an internal highlight, and a short focus-driven reflection supply depth. Text and icons remain sharp above the material.
 
-This is an original glass emulation, not Apple's renderer. It refracts this app's gradient, not arbitrary apps, HDMI video, or system UI. OLED keeps the background black; Light uses reduced highlight strength. Older Android versions keep standard surfaces.
+This is an original glass emulation, not Apple's renderer. It refracts this app's gradient or bundled static wallpaper, not arbitrary apps, HDMI video, or system UI. OLED keeps the background black; Light uses reduced highlight strength. Older Android versions keep standard surfaces.
+
+## Wallpaper navigation check
+
+The same short D-pad sequence with Alpine Lake and photo-refraction glass initially reported a 26 ms median frame time and 20 janky frames. Adding cached hardware layers and limiting dispersion texture samples to the lens edges reduced this to a 14 ms median, 15 ms 95th percentile, 11 ms median GPU time, 0 high-input-latency events, and 0 janky frames across 168 rendered frames. This remains a short warm-navigation sample, not a guarantee across all scenes or workloads.

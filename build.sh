@@ -18,7 +18,7 @@ if [ ! -f "$private_dir/signing.p12" ]; then
  chmod 600 "$private_dir/signing.p12"
 fi
 mkdir -p "$build_dir/classes" "$build_dir/dex"
-"$build_tools/aapt2" link -o "$build_dir/base.apk" --manifest AndroidManifest.xml -I "$android_jar"
+"$build_tools/aapt2" link -o "$build_dir/base.apk" --manifest AndroidManifest.xml -I "$android_jar" -A assets
 javac --release 8 -classpath "$android_jar" -d "$build_dir/classes" src/local/quiethome/*.java
 jar cf "$build_dir/classes.jar" -C "$build_dir/classes" .
 "$build_tools/d8" --lib "$android_jar" --min-api 26 --output "$build_dir/dex" "$build_dir/classes.jar"
