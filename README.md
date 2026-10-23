@@ -13,8 +13,8 @@ A small, ad-free Android TV launcher focused on HDMI devices. Built for TCL Goog
 - Dark, OLED black, and Light themes.
 - Eight gradient backgrounds: Original Midnight, Ocean Blue, Aurora Teal, Forest Green, Sunset Amber, Rose, Purple Haze, and Graphite. Each has dark and light variants.
 - TV brightness slider using TCL's panel-backlight API, adjustable with the remote's left/right arrows.
-- Development version: optional Liquid Glass surfaces in Customize (Android 13+), with refracted gradient colors, directional edge highlights, and short focus animations. See [rendering and performance notes](docs/performance.md).
-- Development version: three offline landscape wallpapers, larger bottom-left clock, and compact top-right controls. See [wallpaper sources and resolution details](docs/wallpapers.md).
+- optional Liquid Glass surfaces in Customize (Android 13+), with refracted gradient colors, directional edge highlights, and short focus animations. See [rendering and performance notes](docs/performance.md).
+- three offline landscape wallpapers, larger bottom-left clock, and compact top-right controls. See [wallpaper sources and resolution details](docs/wallpapers.md).
 - No internet permission, advertising, analytics, accounts, or third-party app libraries.
 
 ![Customization in Light mode](docs/screenshots/customize-light.png)
@@ -29,14 +29,14 @@ The app leaves HDR, VRR, local dimming, CEC, picture processing, Apple services,
 
 ## Download
 
-Get `Quiet-Home-v0.1.apk` from the repository's **Releases** page. Release assets also include SHA-256 checksums.
+Get `Quiet-Home-v0.2.apk` from the repository's **Releases** page. Release assets also include SHA-256 checksums.
 
 ## Install and try it first
 
 With Android platform-tools installed and an authorized ADB connection to your TV:
 
 ```sh
-adb install -r Quiet-Home-v0.1.apk
+adb install -r Quiet-Home-v0.2.apk
 adb shell am start -n local.quiethome/.HomeActivity
 ```
 

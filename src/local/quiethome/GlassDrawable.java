@@ -23,6 +23,7 @@ final class GlassDrawable extends Drawable {
         shader.setColorUniform("c2",background[background.length-1]);
         shader.setColorUniform("tint",tint);
         shader.setFloatUniform("lightMode",light?1f:0f);
+        shader.setFloatUniform("glassDarkness",0f);
         shader.setFloatUniform("imageOn",wallpaper==null?0f:1f);
         shader.setFloatUniform("darkness",wallpaper==null?0f:wallpaper.darkness);
         shader.setInputShader("wallpaper",wallpaper==null?
@@ -37,6 +38,7 @@ final class GlassDrawable extends Drawable {
         animation.addUpdateListener(a->{focus=(Float)a.getAnimatedValue();invalidateSelf();});
         animation.start();
     }
+    void setTint(float amount){shader.setFloatUniform("glassDarkness",Math.max(0f,Math.min(.85f,amount)));invalidateSelf();}
     @Override protected void onBoundsChange(Rect r) { bounds.set(r); }
     @Override public void draw(Canvas canvas) {
         if(bounds.isEmpty())return;
@@ -55,7 +57,7 @@ final class GlassDrawable extends Drawable {
     private static final String SOURCE=String.join("\n",
         "uniform float2 size; uniform float2 origin; uniform float2 screen;",
         "uniform float radius; uniform float focus; uniform float lightMode;",
-        "uniform shader wallpaper; uniform float imageOn; uniform float darkness;",
+        "uniform shader wallpaper; uniform float imageOn; uniform float darkness; uniform float glassDarkness;",
         "layout(color) uniform float4 c0; layout(color) uniform float4 c1;",
         "layout(color) uniform float4 c2; layout(color) uniform float4 tint;",
         "float3 scene(float2 p) {",
@@ -79,6 +81,7 @@ final class GlassDrawable extends Drawable {
         " float3 base=scene(refract);",
         " if(bevel>0.2){base.r=scene(refract+n*split).r;base.b=scene(refract-n*split).b;}",
         " base=mix(base,tint.rgb,lightMode>0.5?0.20:0.13);",
+        " base*=1.0-glassDarkness;",
         " float fresnel=pow(clamp(bevel,0.0,1.0),0.55);",
         " float facing=dot(n,normalize(float2(-0.55,-0.83)));",
         " float rim=exp(-abs(depth-1.2)/1.2);",

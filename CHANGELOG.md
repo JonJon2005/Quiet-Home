@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased — 0.2 development
+## v0.2
 
+- Separate Tint glass and Tint wallpaper sliders, with live material-only darkening and independent saved values.
 - Three approved photographic landscape wallpapers, cropped and downsampled from 6K originals to 3840 × 2160, with a separate wallpaper-darkening control. Sources and credits are in `docs/wallpapers.md`.
 - Larger clock at the bottom left and compact Settings/AirPlay/Customize controls at the top right.
 - Wallpaper-aware glass refraction, background loading on a worker thread, and GPU surface caching.
-
 - Optional Liquid Glass material in Customize: GPU-rendered gradient refraction, edge dispersion, directional rim highlights, internal caustics, and a focus-responsive sheen. Available on Android 13+; conventional surfaces remain available.
 - Faster 100 ms focus transitions with cached backgrounds.
 - Coalesced input callbacks and skipped unchanged tile rebuilds, preserving focus on return.

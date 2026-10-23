@@ -32,6 +32,19 @@ public class HomeActivity extends Activity {
     private WallpaperDrawable photoScene;
     private String wallpaperKey(){return getPreferences(0).getString("wallpaper","");}
     private boolean isLight(){return "light".equals(theme) && wallpaperKey().isEmpty();}
+    private int glassTint(){return Math.max(0,Math.min(85,getPreferences(0).getInt("glass_tint",0)));}
+    private int glassTextColor(){return glass && isLight() && glassTint()>=35?0xfff5f7ff:white;}
+    private void updateGlassTint(View view,boolean inside){
+        boolean own=view.getBackground() instanceof GlassDrawable;
+        if(own)((GlassDrawable)view.getBackground()).setTint(glassTint()/100f);
+        if((inside||own) && view instanceof TextView){
+            TextView text=(TextView)view;
+            text.setTextColor(own || text.getTextSize()/getResources().getDisplayMetrics().scaledDensity>=14?
+                glassTextColor():glassTint()>=35?0xffced8ea:isLight()?muted:0xffced8ea);
+        }
+        if(inside && view instanceof ScreenIcon)view.invalidate();
+        if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)updateGlassTint(group.getChildAt(i),inside||own);}
+    }
     private String backgroundLabel(){
         String key=wallpaperKey();for(int n=0;n<wallpaperFiles.length;n++)if(wallpaperFiles[n].equals(key))return wallpaperNames[n];
         return theme.equals("oled")?"Pure black":backgroundNames[backgroundIndex()];
@@ -179,7 +192,7 @@ public class HomeActivity extends Activity {
         if(glass){
             int[] bg=theme.equals("oled")?new int[]{0xff000000,0xff000000}:
                 isLight()?lightGradients[backgroundIndex()]:darkGradients[backgroundIndex()];
-            try{owner.setLayerType(View.LAYER_TYPE_HARDWARE,null);return new GlassDrawable(owner,bg,color,isLight(),getResources().getDisplayMetrics().density,photoScene);}
+            try{owner.setLayerType(View.LAYER_TYPE_HARDWARE,null);GlassDrawable material=new GlassDrawable(owner,bg,color,isLight(),getResources().getDisplayMetrics().density,photoScene);material.setTint(glassTint()/100f);return material;}
             catch(RuntimeException e){android.util.Log.e("QuietHome","Glass unavailable",e);}
         }
         android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
@@ -196,7 +209,7 @@ public class HomeActivity extends Activity {
         TextView t=tool(label,action);t.setTextSize(12);t.setLayoutParams(new LinearLayout.LayoutParams(dp(86),dp(34)));return t;
     }
     private TextView tool(String label,Runnable action) {
-        TextView t=text(label,15,white); t.setGravity(Gravity.CENTER); t.setFocusable(true);
+        TextView t=text(label,15,glassTextColor()); t.setGravity(Gravity.CENTER); t.setFocusable(true);
         t.setBackground(surfaceFor(t,surface));
         t.setOnFocusChangeListener((v,f)->focusSurface(v,f));
         t.setOnClickListener(v->action.run());
@@ -238,8 +251,8 @@ public class HomeActivity extends Activity {
                 tile.setBackground(surfaceFor(tile,connected?color:inactive)); tile.setAlpha(connected?1f:.65f);
                 View icon=new ScreenIcon(this); LinearLayout.LayoutParams ilp=new LinearLayout.LayoutParams(dp(52),dp(43));
                 ilp.bottomMargin=dp(12); tile.addView(icon,ilp);
-                TextView label=text(name,19,white); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                tile.addView(label); TextView sub=text(port+"  ·  "+(connected?"Connected":"No signal"),11,isLight()?muted:0xffced8ea);
+                TextView label=text(name,19,glassTextColor()); label.setSingleLine(true); label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                tile.addView(label); TextView sub=text(port+"  ·  "+(connected?"Connected":"No signal"),11,glass && glassTint()>=35?0xffced8ea:isLight()?muted:0xffced8ea);
                 LinearLayout.LayoutParams slp=new LinearLayout.LayoutParams(-1,-2); slp.topMargin=dp(7); tile.addView(sub,slp);
                 tile.setContentDescription(name+", "+port+", "+(connected?"connected":"no signal"));
                 tile.setOnClickListener(v->openInput(target));
@@ -304,19 +317,33 @@ public class HomeActivity extends Activity {
         });
         glassButton.setTag("glass-toggle");glassButton.setEnabled(Build.VERSION.SDK_INT>=33);
         LinearLayout.LayoutParams glp=new LinearLayout.LayoutParams(dp(410),dp(44));glp.topMargin=dp(10);root.addView(glassButton,glp);
+        TextView glassLabel=text("Tint glass · "+glassTint()+"%",16,white);
+        LinearLayout.LayoutParams gtlp=new LinearLayout.LayoutParams(-1,-2);gtlp.topMargin=dp(15);root.addView(glassLabel,gtlp);
+        SeekBar glassSlider=new SeekBar(this);glassSlider.setMax(85);glassSlider.setProgress(glassTint());glassSlider.setKeyProgressIncrement(5);
+        glassSlider.setEnabled(glass);glassSlider.setContentDescription("Tint glass");
+        root.addView(glassSlider,new LinearLayout.LayoutParams(dp(650),dp(42)));
+        root.addView(text("Darkens glass tiles and buttons only. Wallpaper tint stays separate.",12,muted));
+        glassSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onStartTrackingTouch(SeekBar s){}
+            public void onStopTrackingTouch(SeekBar s){}
+            public void onProgressChanged(SeekBar s,int value,boolean user){if(!user)return;
+                getPreferences(0).edit().putInt("glass_tint",value).apply();glassLabel.setText("Tint glass · "+value+"%");
+                updateGlassTint(getWindow().getDecorView(),false);
+            }
+        });
         if(!wallpaperKey().isEmpty()){
             int shade=getPreferences(0).getInt("wallpaper_shade",30);
-            TextView shadeLabel=text("Wallpaper darkening · "+shade+"%",16,white);
+            TextView shadeLabel=text("Tint wallpaper · "+shade+"%",16,white);
             LinearLayout.LayoutParams shadeLp=new LinearLayout.LayoutParams(-1,-2);shadeLp.topMargin=dp(15);root.addView(shadeLabel,shadeLp);
             SeekBar shadeSlider=new SeekBar(this);shadeSlider.setMax(70);shadeSlider.setProgress(shade);shadeSlider.setKeyProgressIncrement(5);
-            shadeSlider.setTag("wallpaper-shade");shadeSlider.setContentDescription("Wallpaper darkening");
+            shadeSlider.setTag("wallpaper-shade");shadeSlider.setContentDescription("Tint wallpaper");
             root.addView(shadeSlider,new LinearLayout.LayoutParams(dp(650),dp(42)));
             shadeSlider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
                 private final Runnable apply=()->{customization();View v=getWindow().getDecorView().findViewWithTag("wallpaper-shade");if(v!=null)v.requestFocus();};
                 public void onStartTrackingTouch(SeekBar s){}
                 public void onStopTrackingTouch(SeekBar s){}
                 public void onProgressChanged(SeekBar s,int value,boolean user){if(!user)return;
-                    shadeLabel.setText("Wallpaper darkening · "+value+"%");getPreferences(0).edit().putInt("wallpaper_shade",value).apply();
+                    shadeLabel.setText("Tint wallpaper · "+value+"%");getPreferences(0).edit().putInt("wallpaper_shade",value).apply();
                     handler.removeCallbacks(apply);handler.postDelayed(apply,350);
                 }
             });
@@ -395,7 +422,7 @@ public class HomeActivity extends Activity {
     private class ScreenIcon extends View {
         Paint paint=new Paint(3); ScreenIcon(Context c){super(c);}
         @Override protected void onDraw(Canvas c) {
-            paint.setColor(white);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));
+            paint.setColor(glassTextColor());paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));
             float w=getWidth(),h=getHeight(); c.drawRoundRect(dp(2),dp(2),w-dp(2),h-dp(10),dp(5),dp(5),paint);
             c.drawLine(w/2,h-dp(10),w/2,h-dp(3),paint);c.drawLine(w*.3f,h-dp(2),w*.7f,h-dp(2),paint);
         }

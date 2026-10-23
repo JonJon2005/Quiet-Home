@@ -26,7 +26,7 @@ The historical asset filenames are retained so existing wallpaper selections con
 
 ## Rendering
 
-Choose a scene in **Customize → Background**. The separate **Wallpaper darkening** slider changes only the background image, not panel brightness. Text stays light on photos with subtle shadows. Selecting OLED clears the photo to preserve the pure-black backdrop; choosing any gradient clears the photo and restores gradient mode.
+Choose a scene in **Customize → Background**. The **Tint wallpaper** slider changes the background image, while **Tint glass** separately darkens glass tiles and buttons (0–85%). Glass tint updates shader surfaces live without rebuilding the page; it preserves the edge highlights, saves independently, and is disabled when Liquid Glass is off. Neither control changes panel brightness. Text stays light on photos with subtle shadows. Selecting OLED clears the photo to preserve the pure-black backdrop; choosing any gradient clears the photo and restores gradient mode.
 
 The selected image decodes on a worker thread. A bounded bitmap cache avoids repeated decode work when revisiting a scene. At a 1920-pixel-wide UI the decoder uses a 1920 × 1080 bitmap; a 4K UI can use the full-size asset. The TV panel's physical resolution can differ from the Android UI resolution. Images center-crop to the viewport.
 
