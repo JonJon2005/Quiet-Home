@@ -1,0 +1,17 @@
+# Publish only source, docs, and the TV rollback script. APKs are release assets.
+/*
+!/.gitignore
+!/AndroidManifest.xml
+!/README.md
+!/CHANGELOG.md
+!/build.sh
+!/restore-google-home.sh
+!/src/
+!/docs/
+
+# Always keep signing material and build products local.
+**/*.p12
+**/*.jks
+**/*.keystore
+**/signing-password
+**/.DS_Store
